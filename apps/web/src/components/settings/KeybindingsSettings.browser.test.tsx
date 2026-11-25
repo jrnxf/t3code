@@ -243,6 +243,39 @@ it("Esc in the keybindings search clears the query without closing Settings", as
   expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything());
 });
 
+it("Record keys filters the list to the commands bound to the pressed shortcut", async () => {
+  await using screen = await render(<KeybindingsSettingsPanel />);
+  const search = page.getByRole("searchbox", { name: "Search keybindings" });
+  const record = page.getByRole("button", { name: "Record keys" });
+  const sidebarRow = screen.getByRole("button", { name: /^Edit shortcut for Sidebar: Toggle:/ });
+  const terminalRow = screen.getByRole("button", { name: /^Edit shortcut for Terminal: Toggle:/ });
+
+  await search.fill("terminal");
+  await record.click();
+  await expect.element(record).toHaveAttribute("aria-pressed", "true");
+  await expect.element(search).toHaveFocus();
+  await expect.element(search).toHaveValue("");
+  await expect.element(sidebarRow).toBeVisible();
+
+  const mod = navigator.platform.toLowerCase().includes("mac") ? "Meta" : "Control";
+  await userEvent.keyboard(`{${mod}>}b{/${mod}}`);
+  await expect.element(search).toHaveValue("mod+b");
+  await expect.element(sidebarRow).toBeVisible();
+  await expect.element(terminalRow).not.toBeInTheDocument();
+
+  await userEvent.keyboard("{Control>}{Alt>}{Shift>}{F9}{/Shift}{/Alt}{/Control}");
+  await expect.element(page.getByText("No keybindings match your search.")).toBeVisible();
+
+  await userEvent.keyboard("{Escape}");
+  await expect.element(search).toHaveValue("");
+  await expect.element(record).toHaveAttribute("aria-pressed", "true");
+  await userEvent.keyboard("{Escape}");
+  await expect.element(record).toHaveAttribute("aria-pressed", "false");
+  await expect.element(search).toHaveFocus();
+  await userEvent.keyboard("b");
+  await expect.element(search).toHaveValue("b");
+});
+
 it("re-enables Save when a When editor closes on an expression it could not parse", async () => {
   await using screen = await render(
     <RegistryProvider>

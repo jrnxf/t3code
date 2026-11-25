@@ -11,6 +11,7 @@ import { resolveShortcutCommand } from "../../keybindings";
 import {
   buildKeybindingRows,
   buildWhenVariableOptions,
+  filterKeybindingRowsByShortcut,
   keybindingConflictLabels,
   keybindingFromKeyboardEvent,
   parseWhenExpressionDraft,
@@ -146,6 +147,25 @@ describe("KeybindingsSettings.logic", () => {
       buildKeybindingRows(bindings, "Win32").find((row) => row.command === "sidebar.toggle")
         ?.previewLabels.length === 0,
     ).toBe(false);
+  });
+
+  it("finds every command bound to a pressed shortcut, resolving mod per platform", () => {
+    const rows = buildKeybindingRows(
+      compileResolvedKeybindingsConfig([
+        { command: "chat.new", key: "mod+k" },
+        { command: "terminal.toggle", key: "ctrl+k", when: "terminalFocus" },
+        { command: "sidebar.toggle", key: "mod+shift+k" },
+      ]),
+      "Linux",
+    );
+    const commands = (key: string, platform: string) =>
+      filterKeybindingRowsByShortcut(rows, key, platform).map((row) => row.command);
+
+    expect(commands("mod+k", "Linux")).toEqual(["chat.new", "terminal.toggle"]);
+    expect(commands("mod+k", "MacIntel")).toEqual(["chat.new"]);
+    expect(commands("ctrl+k", "MacIntel")).toEqual(["terminal.toggle"]);
+    expect(commands("mod+j", "Linux")).toEqual([]);
+    expect(commands("", "Linux")).toHaveLength(rows.length);
   });
 
   it("captures platform-specific mod shortcuts", () => {

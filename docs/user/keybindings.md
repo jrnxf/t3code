@@ -3,6 +3,10 @@
 Customize shortcuts in **Settings → Keybindings** on web and desktop. That page
 also lists the command IDs and defaults available in your version.
 
+To find what a shortcut does, turn on **Record keys** in the search field and press
+the shortcut. The list shows every command bound to it. Press `Esc` twice to return
+to text search.
+
 To free a default shortcut for another command, choose **Unassign** from its row's
 actions menu. **Reset to default** brings it back.
 

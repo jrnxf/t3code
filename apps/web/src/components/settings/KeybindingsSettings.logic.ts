@@ -391,6 +391,19 @@ export function filterKeybindingRows(
   });
 }
 
+export function filterKeybindingRowsByShortcut(
+  rows: ReadonlyArray<KeybindingRow>,
+  key: string,
+  platform = navigator.platform,
+): ReadonlyArray<KeybindingRow> {
+  if (key.trim().length === 0) return rows;
+  const shortcut = parseKeybindingShortcut(key);
+  if (!shortcut) return [];
+  // Compare resolved chords so a pressed Ctrl+K finds mod+k where mod is Ctrl.
+  const pressed = shortcutConflictKey(shortcut, platform);
+  return rows.filter((row) => shortcutConflictKey(row.binding.shortcut, platform) === pressed);
+}
+
 function collectWhenIdentifiersFromNode(
   node: KeybindingWhenNode | undefined,
   identifiers: Set<string>,

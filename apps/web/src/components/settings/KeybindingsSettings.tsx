@@ -7,6 +7,7 @@ import {
   CircleXIcon,
   EllipsisIcon,
   FileJsonIcon,
+  KeyboardIcon,
   MinusIcon,
   PlusIcon,
   SearchIcon,
@@ -78,6 +79,7 @@ import { toastManager } from "../ui/toast";
 import {
   buildKeybindingRows,
   filterKeybindingRows,
+  filterKeybindingRowsByShortcut,
   buildKeybindingCommandOptions,
   buildWhenVariableOptions,
   commandLabel,
@@ -137,13 +139,18 @@ function KeybindingPill({ shortcut }: { shortcut: KeybindingShortcut }) {
 function KeybindingsSearchInput({
   query,
   onChange,
+  isRecordingKeys,
+  onRecordingKeysChange,
   inputRef,
 }: {
   query: string;
   onChange: (next: string) => void;
+  isRecordingKeys: boolean;
+  onRecordingKeysChange: (next: boolean) => void;
   inputRef: RefObject<HTMLInputElement | null>;
 }) {
   const gt = useGT();
+  const recordKeysLabel = gt("Record keys");
   return (
     <InputGroup className="min-w-0 basis-full **:[input]:h-9 sm:basis-0 sm:flex-1 sm:**:[input]:h-8">
       <InputGroupAddon>
@@ -156,20 +163,57 @@ function KeybindingsSearchInput({
         role="searchbox"
         enterKeyHint="search"
         value={query}
+        readOnly={isRecordingKeys}
         onChange={(event) => onChange(event.currentTarget.value)}
         onKeyDown={(event) => {
-          if (!isBareEscape(event) || event.nativeEvent.isComposing || event.keyCode === 229)
+          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+          if (isBareEscape(event)) {
+            event.preventDefault();
+            if (query.length > 0 || event.repeat) {
+              event.stopPropagation();
+              onChange("");
+            } else if (isRecordingKeys) {
+              event.stopPropagation();
+              onRecordingKeysChange(false);
+            } else event.currentTarget.blur();
             return;
+          }
+          // Tab stays a focus key so recording never traps keyboard users.
+          if (!isRecordingKeys || event.key === "Tab") return;
+          const next = keybindingFromKeyboardEvent(event.nativeEvent, navigator.platform, {
+            layoutCharacter: true,
+          });
+          if (!next) return;
           event.preventDefault();
-          if (query.length > 0 || event.repeat) {
-            event.stopPropagation();
-            onChange("");
-          } else event.currentTarget.blur();
+          event.stopPropagation();
+          onChange(next);
         }}
-        placeholder={gt("Search keybindings")}
+        placeholder={isRecordingKeys ? gt("Press shortcut") : gt("Search keybindings")}
         aria-label={gt("Search keybindings")}
         size="sm"
+        {...(isRecordingKeys ? { font: "mono" as const } : {})}
       />
+      <InputGroupAddon align="inline-end">
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Toggle
+                pressed={isRecordingKeys}
+                onPressedChange={(pressed) => {
+                  onRecordingKeysChange(pressed);
+                  inputRef.current?.focus();
+                }}
+                aria-label={recordKeysLabel}
+                variant="ghost"
+                size="xs"
+              />
+            }
+          >
+            <KeyboardIcon aria-hidden className="size-3.5" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">{recordKeysLabel}</TooltipPopup>
+        </Tooltip>
+      </InputGroupAddon>
     </InputGroup>
   );
 }
@@ -1538,6 +1582,7 @@ export function KeybindingsSettingsPanel() {
     availableEditors,
   );
   const [query, setQuery] = useState("");
+  const [isRecordingKeys, setIsRecordingKeys] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [savingCommand, setSavingCommand] = useState<KeybindingCommand | null>(null);
   const [isAddingBinding, setIsAddingBinding] = useState(false);
@@ -1550,7 +1595,9 @@ export function KeybindingsSettingsPanel() {
   }
   const whenVariables = buildWhenVariableOptions();
   const { commandOptions, allRows } = useKeybindingCatalog();
-  const rows = filterKeybindingRows(allRows, query, m);
+  const rows = isRecordingKeys
+    ? filterKeybindingRowsByShortcut(allRows, query)
+    : filterKeybindingRows(allRows, query, m);
   const groups = groupKeybindingRows(rows);
   const anchorIds = keybindingAnchorIds(rows);
 
@@ -1695,7 +1742,16 @@ export function KeybindingsSettingsPanel() {
         headerAction={!isElectron ? <BrowserKeybindingNotice /> : null}
       >
         <div className="flex flex-wrap items-center gap-2 px-3 py-3 sm:px-4">
-          <KeybindingsSearchInput query={query} onChange={setQuery} inputRef={searchInputRef} />
+          <KeybindingsSearchInput
+            query={query}
+            onChange={setQuery}
+            isRecordingKeys={isRecordingKeys}
+            onRecordingKeysChange={(next) => {
+              setIsRecordingKeys(next);
+              setQuery("");
+            }}
+            inputRef={searchInputRef}
+          />
           <Button
             type="button"
             variant="outline"
